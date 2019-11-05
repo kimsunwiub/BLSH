@@ -87,7 +87,11 @@ def main():
         IBM = [(trS_mag[i] > trN_mag[i]) for i in range(len(trS_mag))]
         IBM = np.concatenate(IBM, 0)
         np.save("IBM_STFT.npy", IBM)
-
+        
+        Xtr = trX_mag
+        Xva = vaX_mag
+        Xte = teX_mag
+        
     if args.make_mels:
         # Check if magnitude STFTs have been generated
         if not os.path.exists('trX_mag_STFT.pkl'):
@@ -137,12 +141,6 @@ def main():
         save_pkl(Xtr, 'trX_MFCC.pkl')
         save_pkl(Xva, 'vaX_MFCC.pkl')
         save_pkl(Xte, 'teX_MFCC.pkl')
-    
-    else:
-        # STFT
-        Xtr = trX_mag
-        Xva = vaX_mag
-        Xte = teX_mag
     
     Xtr = np.concatenate(Xtr, 0)
 
