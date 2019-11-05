@@ -10,14 +10,9 @@ By learning discriminative hash codes, our boosted locality sensitive hashing fr
 * A python script to generate training and testing wavefiles and spectral features.
 
 ### Data Generation
-* To generate the clean source, noises, and mixture wavefiles, 
+* To generate the clean source, noises, and mixture wavefiles and the spectral features, 
 ```
-python generate_data.py --make_wavefiles
-```
-
-* To generate the spectral features from the wavefiles,
-```
-python generate_data.py --option
+python generate_data.py --make_wavefiles --option
 ```
 where options are: None for STFT, --use_mel for mel spectrograms, --use_mfcc for MFCC
 

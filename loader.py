@@ -72,10 +72,10 @@ def load_trainset(trs_spkr_lists, noise_idx_list, noise_frqs, seed):
     for trs_spkr in trs_spkr_lists:
         spkr_frqs = load_spkr('Data/train/{}'.format(trs_spkr))
         for j in range(len(spkr_frqs)):
-            s = spkr_frq[j]
+            s = spkr_frqs[j]
             for idx in noise_idx_list:
                 n, x = get_and_add_noise(
-                    noise_frqs[idx], s, seed)
+                    noise_frqs[idx], s)
                 if j < 2:
                     vas.append(s)
                     van.append(n)
@@ -96,7 +96,7 @@ def load_testset(tes_spkr_lists, noise_frqs, seed):
             n = noise_frqs[noise_idxs[j]]
             while len(n) < len(s):
                 n = np.tile(n,2)
-            spkr_n, spkr_x = get_and_add_noise(n, s, seed)
+            spkr_n, spkr_x = get_and_add_noise(n, s)
             tes.append(s)
             ten.append(spkr_n)
             tex.append(spkr_x)
@@ -124,8 +124,7 @@ def load_DEMAND_noises(noise_dir):
     print (noise_files, len(noise_frqs))
     return noise_frqs
 
-def get_and_add_noise(noise, source, seed):
-    np.random.seed(seed)
+def get_and_add_noise(noise, source):
     noise_start = np.random.randint(0,len(noise) - len(source))
     spkr_noise = noise[noise_start:noise_start + len(source)]
     return spkr_noise, spkr_noise + source
