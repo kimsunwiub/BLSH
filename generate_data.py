@@ -1,7 +1,10 @@
 from argparse import ArgumentParser
+import numpy as np
+import librosa
 import pickle
 import os
-from loader import *
+
+from loader import setup_ada_training_data, setup_ada_testing_data
 from utils import save_pkl, load_pkl
 
 def parse_arguments():
@@ -30,16 +33,18 @@ def main():
         tes, ten, tex, _ = setup_ada_testing_data(args.seed)
         
         # Save files
-        train_waves_dict = {
-            'trs': trs, 'trx': trx, 'trn': trn,
-        }
+        train_waves_dict = {'s': trs, 'x': trx, 'n': trn}
         with open('trsnx_wavefiles.pkl', 'wb') as handle:
             pickle.dump(train_waves_dict, handle)
-        
-        save_pkl(vas, 'vas_wavefiles.pkl')
+            
+        val_waves_dict = {'s': vas, 'x': vax, 'n': van}
+        with open('vasnx_wavefiles.pkl', 'wb') as handle:
+            pickle.dump(val_waves_dict, handle)
         save_pkl(vax, 'vax_wavefiles.pkl')
         
-        save_pkl(tes, 'tes_wavefiles.pkl')
+        test_waves_dict = {'s': tes, 'x': tex, 'n': ten}
+        with open('tesnx_wavefiles.pkl', 'wb') as handle:
+            pickle.dump(test_waves_dict, handle)
         save_pkl(tex, 'tex_wavefiles.pkl')
     
     if args.make_stfts:
@@ -51,9 +56,9 @@ def main():
         # Load generated wavefiles
         with open('trsnx_wavefiles.pkl', 'rb') as handle:
             train_waves_dict = pickle.load(handle)
-        trs = train_waves_dict['trs']
-        trn = train_waves_dict['trn']; 
-        trx = train_waves_dict['trx']
+        trs = train_waves_dict['s']
+        trn = train_waves_dict['n']
+        trx = train_waves_dict['x']
         vax = load_pkl('vax_wavefiles.pkl')
         tex = load_pkl('tex_wavefiles.pkl')
 
@@ -137,28 +142,25 @@ def main():
         Xte = [librosa.feature.mfcc(
                 S=librosa.power_to_db(x).T, sr=16000).T.astype(np.float32)
                 for x in teX_Mel]
-        
-        save_pkl(Xtr, 'trX_MFCC.pkl')
-        save_pkl(Xva, 'vaX_MFCC.pkl')
-        save_pkl(Xte, 'teX_MFCC.pkl')
     
-    Xtr = np.concatenate(Xtr, 0)
+    if args.make_stfts or args.make_mels or args.make_mfccs:
+        Xtr = np.concatenate(Xtr, 0)
 
-    # Normalize
-    Xtr = Xtr/np.linalg.norm(Xtr+1e-4, axis=1)[:,None]
-    Xva = [x/np.linalg.norm(x+1e-4, axis=1)[:,None] for x in Xva]
-    Xte = [x/np.linalg.norm(x+1e-4, axis=1)[:,None] for x in Xte]
+        # Normalize
+        Xtr = Xtr/np.linalg.norm(Xtr+1e-4, axis=1)[:,None]
+        Xva = [x/np.linalg.norm(x+1e-4, axis=1)[:,None] for x in Xva]
+        Xte = [x/np.linalg.norm(x+1e-4, axis=1)[:,None] for x in Xte]
 
-    # Save files
-    if args.make_mels: 
-        suffix = "Mel"
-    elif args.make_mfccs: 
-        suffix = "MFCC"
-    else: 
-        suffix = "STFT"
-    np.save("Xtr_{}".format(suffix), Xtr)
-    save_pkl(Xva, "Xva_{}.pkl".format(suffix))
-    save_pkl(Xte, "Xte_{}.pkl".format(suffix))
+        # Save files
+        if args.make_mels: 
+            suffix = "Mel"
+        elif args.make_mfccs: 
+            suffix = "MFCC"
+        else: 
+            suffix = "STFT"
+        np.save("Xtr_{}".format(suffix), Xtr)
+        save_pkl(Xva, "Xva_{}.pkl".format(suffix))
+        save_pkl(Xte, "Xte_{}.pkl".format(suffix))
         
 if __name__ == "__main__":
     main()

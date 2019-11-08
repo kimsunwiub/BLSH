@@ -1,7 +1,8 @@
-import os
-import random
-import librosa
 import numpy as np
+import librosa
+import random
+import os
+
 from utils import count_mins
 
 def setup_ada_training_data(seed):
