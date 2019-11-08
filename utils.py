@@ -34,5 +34,6 @@ def get_mir_scores(s, n, x, sr):
     noiseR = np.array(x[:ml]-sr[:ml])[:,None].T
     sdr,sir,sar,_=mir_eval.separation.bss_eval_sources(
             np.concatenate((source, noise),0),
-            np.concatenate((sourceR, noiseR),0), compute_permutation=False)   
+            np.concatenate((sourceR, noiseR),0), 
+            compute_permutation=False)   
     return sdr[0],sir[0],sar[0]
