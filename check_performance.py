@@ -92,7 +92,7 @@ def main():
         else:
             # LSH Random projection baseline
             np.random.seed(args.seed)
-            projections = np.random.rand((Xtr.shape[1], args.n_proj))
+            projections = np.random.rand(Xtr.shape[1], args.n_proj)
         applied_tr = np.sign(np.dot(Xtr, projections))
     else:
         # Oracle kNN baseline
