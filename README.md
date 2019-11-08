@@ -9,12 +9,30 @@ By learning discriminative hash codes, our boosted locality sensitive hashing fr
 #### generate_data.py
 * A python script to generate training and testing wavefiles and spectral features.
 
+#### check_performance.py
+* A python script to check performance of oracle or projected kNN on various features.
+
+#### utils.py
+* Misc. helper functions.
+
 ### Data Generation
 * To generate the clean source, noises, and mixture wavefiles and the spectral features, 
 ```
 python generate_data.py --make_wavefiles --option
 ```
 where options are: None for STFT, --use_mel for mel spectrograms, --use_mfcc for MFCC
+
+### Testing performance
+* Eg. to test the performance of kNN procedure using ground truth STFT dictionary on closed set, 
+```
+python check_performance.py -o --use_stft --is_closed
+```
+
+* For other options, 
+```
+python check_performance.py -h
+```
+
 
 ### Datasets used in this repository
 * TIMIT (https://catalog.ldc.upenn.edu/LDC93S1)
