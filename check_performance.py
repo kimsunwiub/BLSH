@@ -37,9 +37,6 @@ def parse_arguments():
 def main():
     args = parse_arguments()
     
-    if args.is_proj:
-        assert args.load_model is not None
-    
     # Load dictionary
     if args.use_stft:
         Xtr = np.load("Xtr_STFT.npy")
