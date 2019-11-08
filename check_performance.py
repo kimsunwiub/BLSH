@@ -26,7 +26,7 @@ def parse_arguments():
     parser.add_argument("-n", "--n_proj", type=int, default=200,
                         help = "Number of projections")
     parser.add_argument("--use_perc", type=float, default=1.0,
-                        help = "Random sample % of training set")
+                        help = "Random sample %% of training set")
     parser.add_argument("-k", "--K", type=int, default=10,
                         help = "Number of neighbors")
     parser.add_argument("--seed", type=int, default=42,
