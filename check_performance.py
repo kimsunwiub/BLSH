@@ -2,6 +2,8 @@ from argparse import ArgumentParser
 import numpy as np
 import librosa
 import pickle
+import torch
+import os
 
 from utils import SDR, get_mir_scores, load_pkl
 
@@ -31,11 +33,17 @@ def parse_arguments():
                         help = "Number of neighbors")
     parser.add_argument("--seed", type=int, default=42,
                         help = "Seed for random sampling from dictionary")
+    parser.add_argument("--gpu_id", type=int, default=-1,
+                        help = "GPU ID. -1 for ")
     
     return parser.parse_args()
 
 def main():
     args = parse_arguments()
+    if args.gpu_id != -1:
+        os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+        os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu_id)
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     
     # Load dictionary
     if args.use_stft:
@@ -84,6 +92,7 @@ def main():
     
     # Load projections and apply
     if args.is_proj:
+        print ("Loading projections...")
         if args.load_model:
             projections = np.load(
                 "{}_projs.npy".format(args.load_model))
@@ -92,11 +101,24 @@ def main():
         else:
             # LSH Random projection baseline
             np.random.seed(args.seed)
-            projections = np.random.rand(Xtr.shape[1], args.n_proj)
-        applied_tr = np.sign(np.dot(Xtr, projections))
+            # projections = np.random.rand(Xtr.shape[1], args.n_proj)
+            projections = np.random.normal(loc=0.0, 
+                            scale=1./args.n_proj, 
+                            size=(Xtr.shape[1], args.n_proj))  
+            
+        if args.gpu_id != -1:
+            Xtr = torch.cuda.FloatTensor(Xtr)
+            projections = torch.cuda.FloatTensor(projections)
+            applied_tr = torch.sign(Xtr.mm(projections))
+        else:
+            applied_tr = np.sign(np.dot(Xtr, projections))
+        
     else:
         # Oracle kNN baseline
-        applied_tr = Xtr
+        if args.gpu_id != -1:
+            applied_tr = torch.cuda.FloatTensor(Xtr)
+        else:
+            applied_tr = Xtr
         
     # Get scores
     N_va = len(Xva)
@@ -109,12 +131,23 @@ def main():
     for i in range(N_va):
         # Apply projections on validation data
         if args.is_proj:
-            applied_vate = np.sign(np.dot(Xva[i], projections))
+            if args.gpu_id != -1:
+                Xva_i = torch.cuda.FloatTensor(Xva[i])
+                applied_vate = torch.sign(Xva_i.mm(projections))
+            else:
+                applied_vate = np.sign(np.dot(Xva[i], projections))
         else:
-            applied_vate = Xva[i]
+            if args.gpu_id != -1:
+                applied_vate = torch.cuda.FloatTensor(Xva[i])
+            else:
+                applied_vate = Xva[i]
         
         # Compute cosine similarity scores
-        scores = np.dot(applied_tr, applied_vate.T)
+        if args.gpu_id != -1:
+            scores = applied_tr.mm(applied_vate.t())
+            scores = scores.detach().cpu().numpy()
+        else:
+            scores = np.dot(applied_tr, applied_vate.T)
         if args.is_proj:
             scores = ((scores+args.n_proj)/2)
         
