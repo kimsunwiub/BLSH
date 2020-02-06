@@ -24,6 +24,17 @@ python generate_data.py --make_wavefiles --option
 ```
 where options are: None for STFT, --use_mel for mel spectrograms, --use_mfcc for MFCC
 
+### Training weak learners
+* To construct hash functions in the form of weak learners, 
+```
+python train_weak_learners.py --use_stft
+```
+
+* For other options, 
+```
+python train_weak_learners.py -h
+```
+
 ### Testing performance
 * Eg. to test the performance of kNN procedure using ground truth STFT dictionary on closed set, 
 ```
