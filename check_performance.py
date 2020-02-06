@@ -45,13 +45,21 @@ def main():
         os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu_id)
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     
-    # Load dictionary
     if args.use_stft:
-        Xtr = np.load("Xtr_STFT.npy")
+        Xtr_load_nm = "Xtr_STFT.npy"
+        Xva_load_nm = "Xva_STFT.pkl"
+        Xva_load_nm = "Xte_STFT.pkl"
     elif args.use_mel:
-        Xtr = np.load("Xtr_Mel.npy")
+        Xtr_load_nm = "Xtr_Mel.npy"
+        Xva_load_nm = "Xva_Mel.pkl"
+        Xva_load_nm = "Xte_Mel.pkl"
     elif args.use_mfcc:
-        Xtr = np.load("Xtr_MFCC.npy")
+        Xtr_load_nm = "Xtr_MFCC.npy"
+        Xva_load_nm = "Xva_MFCC.pkl"
+        Xva_load_nm = "Xte_MFCC.pkl"
+        
+    # Load training dictionary
+    Xtr = np.load(Xtr_load_nm)
     Ytr = np.load("IBM_STFT.npy")
     
     # Random sampling
@@ -63,26 +71,17 @@ def main():
     # Load testing data
     if args.is_closed:
         print ("Loading closed set")
+        
+        Xva = load_pkl(Xva_load_nm)
         vaX = load_pkl("vaX_STFT.pkl")
-        if args.use_stft:
-            Xva = load_pkl("Xva_STFT.pkl")
-        elif args.use_mel:
-            Xva = load_pkl("Xva_Mel.pkl")
-        elif args.use_mfcc:
-            Xva = load_pkl("Xva_MFCC.pkl")
         with open('vasnx_wavefiles.pkl', 'rb') as handle:
             val_waves_dict = pickle.load(handle)
             
     else:   
         print ("Loading open set")
-        vaX = load_pkl("teX_STFT.pkl")
-        if args.use_stft:
-            Xva = load_pkl("Xte_STFT.pkl")
-        elif args.use_mel:
-            Xva = load_pkl("Xte_Mel.pkl")
-        elif args.use_mfcc:
-            Xva = load_pkl("Xte_MFCC.pkl")
             
+        Xva = load_pkl(Xva_load_nm)
+        vaX = load_pkl("teX_STFT.pkl")
         with open('tesnx_wavefiles.pkl', 'rb') as handle:
             val_waves_dict = pickle.load(handle)
             
