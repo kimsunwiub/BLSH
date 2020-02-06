@@ -14,8 +14,11 @@ This material is based upon work supported by the National Science Foundation un
 #### check_performance.py
 * A python script to check performance of oracle or projected kNN on various features.
 
+#### train_weak_learners.py
+* A python script to train weak learners on various features. 
+
 #### utils.py
-* Misc. helper functions.
+* Helper functions.
 
 ### Data Generation
 * To generate the clean source, noises, and mixture wavefiles and the spectral features, 
