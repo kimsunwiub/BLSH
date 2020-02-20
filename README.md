@@ -1,5 +1,5 @@
 ## Boosted Locality Sensitive Hashing: Discriminative Binary Codes for Source Separation
-By learning discriminative hash codes, our boosted locality sensitive hashing framework shows comparative performance to deep learning methods in terms of denoising performance and complexity. This repository contains code used in  **Boosted Locality Sensitive Hashing: Discriminative Binary Codes for Source Separation** (link to be posted).
+By learning discriminative hash codes, our boosted locality sensitive hashing framework shows comparative performance to deep learning methods in terms of denoising performance and complexity. This repository contains code used in  **Boosted Locality Sensitive Hashing: Discriminative Binary Codes for Source Separation** (https://arxiv.org/abs/2002.06239).
 
 This material is based upon work supported by the National Science Foundation under Award Number:1909509.
 
