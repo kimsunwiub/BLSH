@@ -106,19 +106,13 @@ def load_testset(tes_spkr_lists, noise_frqs, seed):
 
 def load_spkr(spkr_dir):
     spkr_files = [x for x in os.listdir(spkr_dir) if 'wav' in x]
-    spkr_frqs = [librosa.load('{}/{}'.format(spkr_dir, x), sr=16000)[0] 
-                    for x in spkr_files]
+    spkr_frqs = [librosa.load('{}/{}'.format(spkr_dir, x), sr=16000)[0] for x in spkr_files]
     spkr_frqs = [frqs/frqs.std() for frqs in spkr_frqs]
     return spkr_frqs
 
 def load_Duan_noises(noise_dir):
-    noise_files = ['birds.wav', 'casino.wav', 'cicadas.wav', 
-                    'computerkeyboard.wav', 'eatingchips.wav', 'frogs.wav', 
-                    'jungle.wav', 'machineguns.wav', 'motorcycles.wav', 
-                    'ocean.wav']
-    noise_frqs = [librosa.load('{}/{}'.format(noise_dir, x), sr=16000)[0] 
-                    for x in noise_files]
-    noise_frqs = [frqs/frqs.std() for frqs in noise_frqs]
+    noise_files = ['birds.wav', 'casino.wav', 'cicadas.wav', 'computerkeyboard.wav', 'eatingchips.wav', 'frogs.wav', 'jungle.wav', 'machineguns.wav', 'motorcycles.wav', 'ocean.wav']
+    noise_frqs = [librosa.load('{}/{}'.format(noise_dir, x), sr=16000)[0] for x in noise_files]
     return noise_frqs
 
 def load_DEMAND_noises(noise_dir):
@@ -126,13 +120,13 @@ def load_DEMAND_noises(noise_dir):
     noise_files.sort()
     noise_frqs = [librosa.load('{}/{}'.format(noise_dir, x), 
                                sr=16000)[0] for x in noise_files]
-    noise_frqs = [frqs/frqs.std() for frqs in noise_frqs]
     print (noise_files, len(noise_frqs))
     return noise_frqs
 
 def get_and_add_noise(noise, source):
     noise_start = np.random.randint(0,len(noise) - len(source))
     spkr_noise = noise[noise_start:noise_start + len(source)]
+    spkr_noise = spkr_noise/spkr_noise.std()
     return spkr_noise, spkr_noise + source
 
 def load_more_spkr_with_noise(spkr_dir, noise, seed):
@@ -143,8 +137,7 @@ def load_more_spkr_with_noise(spkr_dir, noise, seed):
 
 def get_random_dr_f_speakers(dr_idx, num_speakers, seed):
     all_spkrs = ['dr{}/{}'.format(dr_idx, name) for name in
-                    os.listdir('Data/train/dr{}'.format(dr_idx))
-                    if 'Store' not in name]
+                    os.listdir('Data/train/dr{}'.format(dr_idx))if 'Store' not in name]
     f_spkrs = [spkr for spkr in all_spkrs if spkr.split('/')[1][0] == 'f']
     np.random.seed(seed)
     perms = np.random.permutation(len(f_spkrs))[:num_speakers]
@@ -152,8 +145,7 @@ def get_random_dr_f_speakers(dr_idx, num_speakers, seed):
 
 def get_random_dr_m_speakers(dr_idx, num_speakers, seed):
     all_spkrs = ['dr{}/{}'.format(dr_idx, name) for name in
-                    os.listdir('Data/train/dr{}'.format(dr_idx))
-                    if 'Store' not in name]
+                    os.listdir('Data/train/dr{}'.format(dr_idx))if 'Store' not in name]
     m_spkrs = [spkr for spkr in all_spkrs if spkr.split('/')[1][0] == 'm']
     np.random.seed(seed)
     perms = np.random.permutation(len(m_spkrs))[:num_speakers]
@@ -187,8 +179,7 @@ def count_gender(spkrs):
 
 def get_random_dr_f_speakers_test(dr_idx, num_speakers, seed):
     all_spkrs = ['dr{}/{}'.format(dr_idx, name) for name in
-                    os.listdir('Data/test/dr{}'.format(dr_idx))
-                    if 'Store' not in name]
+                    os.listdir('Data/test/dr{}'.format(dr_idx))if 'Store' not in name]
     f_spkrs = [spkr for spkr in all_spkrs if spkr.split('/')[1][0] == 'f']
     np.random.seed(seed)
     perms = np.random.permutation(len(f_spkrs))[:num_speakers]
@@ -196,8 +187,7 @@ def get_random_dr_f_speakers_test(dr_idx, num_speakers, seed):
 
 def get_random_dr_m_speakers_test(dr_idx, num_speakers, seed):
     all_spkrs = ['dr{}/{}'.format(dr_idx, name) for name in
-                    os.listdir('Data/test/dr{}'.format(dr_idx))
-                    if 'Store' not in name]
+                    os.listdir('Data/test/dr{}'.format(dr_idx))if 'Store' not in name]
     m_spkrs = [spkr for spkr in all_spkrs if spkr.split('/')[1][0] == 'm']
     np.random.seed(seed)
     perms = np.random.permutation(len(m_spkrs))[:num_speakers]
