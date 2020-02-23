@@ -83,3 +83,27 @@ def train_pm_xent(wi, p_m, input_data, ssm, optimizer, num_iter):
         loss.backward()
         optimizer.step()
     return p_m, bssm
+
+def bssm_tanh_PL(input_data, model):
+    temp = model(input_data)
+    output = torch.tanh(temp)
+    bssm = torch.mm(output, output.t())
+    bssm = (bssm+1)/2
+    return bssm
+
+def bssm_sign_PL(input_data, model):
+    temp = model(input_data)
+    signbnnh1=signBNN()
+    output = signbnnh1(temp)
+    bssm = torch.mm(output, output.t())
+    bssm = (bssm+1)/2
+    return bssm
+
+def train_pm_xent_PL(wi, model, input_data, ssm, optimizer, num_iter):
+    for i in range(num_iter):
+        bssm = bssm_tanh_PL(input_data, model)
+        loss = (xent_fn(bssm,ssm)*wi).sum()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    return model, bssm
