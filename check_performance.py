@@ -22,6 +22,10 @@ def parse_arguments():
                         help="Using MFCC features")
     parser.add_argument("--is_closed", action='store_true',
                         help="Open (Test) / Closed (Val)")
+    parser.add_argument("--use_kernel", action='store_true',
+                        help="RBF Kernel for comparison")
+    parser.add_argument("--sigma2", type=float, default=1.0,
+                        help = "Width of RBF kernel")
     
     parser.add_argument("--load_model", type=str, default=None,
                         help="Trained projections")    
@@ -40,6 +44,7 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
+    print (args.n_proj, args.seed, args.is_closed, args.load_model, args.gpu_id, args.use_perc, args.is_closed)
     if args.gpu_id != -1:
         os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
         os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu_id)
@@ -48,15 +53,15 @@ def main():
     if args.use_stft:
         Xtr_load_nm = "Xtr_STFT.npy"
         Xva_load_nm = "Xva_STFT.pkl"
-        Xva_load_nm = "Xte_STFT.pkl"
+        Xte_load_nm = "Xte_STFT.pkl"
     elif args.use_mel:
         Xtr_load_nm = "Xtr_Mel.npy"
         Xva_load_nm = "Xva_Mel.pkl"
-        Xva_load_nm = "Xte_Mel.pkl"
+        Xte_load_nm = "Xte_Mel.pkl"
     elif args.use_mfcc:
         Xtr_load_nm = "Xtr_MFCC.npy"
         Xva_load_nm = "Xva_MFCC.pkl"
-        Xva_load_nm = "Xte_MFCC.pkl"
+        Xte_load_nm = "Xte_MFCC.pkl"
         
     # Load training dictionary
     Xtr = np.load(Xtr_load_nm)
@@ -80,7 +85,7 @@ def main():
     else:   
         print ("Loading open set")
             
-        Xva = load_pkl(Xva_load_nm)
+        Xva = load_pkl(Xte_load_nm)
         vaX = load_pkl("teX_STFT.pkl")
         with open('tesnx_wavefiles.pkl', 'rb') as handle:
             val_waves_dict = pickle.load(handle)
@@ -147,6 +152,8 @@ def main():
             scores = scores.detach().cpu().numpy()
         else:
             scores = np.dot(applied_tr, applied_vate.T)
+        if args.use_kernel:
+            scores = np.exp(scores/args.sigma2)
         if args.is_proj:
             scores = ((scores+args.n_proj)/2)
         
@@ -184,10 +191,24 @@ def main():
         'msar': mirSARlist,
         'ml': ml
     }
-    test_nm = "AdaRes_kTyp{}{}_K{}_feat{}{}{}_nproj{}_perc{}".format(
-        int(args.is_oracle), int(args.is_proj), args.K, 
-        int(args.use_stft), int(args.use_mel), int(args.use_mfcc),
-        args.n_proj, int(args.use_perc*100))
+    
+    loaded = 0
+    if args.load_model:
+        loaded = 1
+        
+    test_nm = "results_[{}|{}]_proj[n={}]_feat[{}]_seed[{}]_perc[{}]".format(args.is_proj, 
+                                                                     loaded, args.n_proj, 
+                                                                    Xtr_load_nm.split('.')[0], args.seed,
+                                                                            int(args.use_perc*100))
+#     test_nm = "AdaRes_kTyp{}{}_K{}_feat{}{}{}_nproj{}_perc{}".format(
+#         int(args.is_oracle), int(args.is_proj), args.K, 
+#         int(args.use_stft), int(args.use_mel), int(args.use_mfcc),
+#         args.n_proj, int(args.use_perc*100))
+    
+    if args.is_closed:
+        test_nm += "CLOSED"
+        print ("SAVING {}".format(test_nm))
+    
     with open('{}.pkl'.format(test_nm), 'wb') as handle:
             pickle.dump(result_dict, handle)
     print ("Results saved")
