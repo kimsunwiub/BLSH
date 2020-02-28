@@ -53,7 +53,7 @@ def main():
     Ntr, n_features = Xtr.shape
     
     ## --- Training params ---
-    M = 50 # p_m
+    M = 200 # 50 # p_m
     np.random.seed(42)
     Xtr_shuffled = Xtr[np.random.permutation(len(Xtr))]
     
@@ -63,6 +63,8 @@ def main():
         projections = list(np.load("{}_projs.npy".format(args.load_model)))
         # betas
         wip1 = np.load("{}_wip1.npy".format(args.load_model))
+#         betas = list(np.load("{}_betas.npy".format(args.load_model)))
+        betas = []
         m_start = len(projections)
         model_nm = args.load_model
     else:
@@ -93,7 +95,15 @@ def main():
             if i % (segment_len*10) == 0:
                 print ("m={} Progress {:.2f}%".format(m, 100*i/len(Xtr_shuffled)))
             Xtr_seg = torch.cuda.FloatTensor(Xtr_shuffled[i:i+segment_len])
+            if len(Xtr_seg) < segment_len:
+                print (
+                    "Xtr_seg length: {}. Break.".format(len(Xtr_seg)))
+                break
             wi_seg = torch.cuda.FloatTensor(wi[i:i+segment_len])
+            if len(wi_seg) < segment_len:
+                print (
+                    "wi_seg length: {}. Break.".format(len(wi_seg)))
+                break
             ssm = torch.mm(Xtr_seg, Xtr_seg.t())
             ssm /= ssm.max()
             p_m, ssm_hat = train_pm_xent(
@@ -118,7 +128,7 @@ def main():
         betas.append(beta_m_log.detach().cpu().numpy())
 
         # Validation
-        if (m+1) % 1 == 0:
+        if (m+1) % 10 == 0:
             # Saving results
             model_nm = "proj[n={}]_feat[{}]".format(len(projections), 
                                         Xtr_load_nm.split('.')[0])

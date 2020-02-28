@@ -22,14 +22,10 @@ def parse_arguments():
                         help="Using MFCC features")
     parser.add_argument("--is_closed", action='store_true',
                         help="Open (Test) / Closed (Val)")
-    parser.add_argument("--use_kernel", action='store_true',
-                        help="RBF Kernel for comparison")
-    parser.add_argument("--sigma2", type=float, default=1.0,
-                        help = "Width of RBF kernel")
     
     parser.add_argument("--load_model", type=str, default=None,
                         help="Trained projections")    
-    parser.add_argument("-n", "--n_proj", type=int, default=200,
+    parser.add_argument("-n", "--n_proj", type=int, default=None,
                         help = "Number of projections")
     parser.add_argument("--use_perc", type=float, default=1.0,
                         help = "Random sample %% of training set")
@@ -44,12 +40,13 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
-    print (args.n_proj, args.seed, args.is_closed, args.load_model, args.gpu_id, args.use_perc, args.is_closed)
+    
     if args.gpu_id != -1:
         os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
         os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu_id)
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     
+    # Decide features to work on (STFT, Mel (M=128), or MFCC)
     if args.use_stft:
         Xtr_load_nm = "Xtr_STFT.npy"
         Xva_load_nm = "Xva_STFT.pkl"
@@ -62,7 +59,18 @@ def main():
         Xtr_load_nm = "Xtr_MFCC.npy"
         Xva_load_nm = "Xva_MFCC.pkl"
         Xte_load_nm = "Xte_MFCC.pkl"
-        
+    
+    # Name for saving results
+    feature_or_model = Xtr_load_nm.split('.')[0]
+    if args.load_model: 
+        feature_or_model = args.load_model.split('/')[-1] 
+    save_nm = "{}/results_Prj[{}|{}]_Fom[{}]_See[{}]_Per[{}]_Cld[{}]".format(
+        "Results_Checking", args.is_proj, args.n_proj, feature_or_model, 
+        args.seed, int(args.use_perc*100), args.is_closed)
+    
+    print ("Starting script on GPU {}...".format(args.gpu_id))
+    print ("Job: {}".format(save_nm))
+    
     # Load training dictionary
     Xtr = np.load(Xtr_load_nm)
     Ytr = np.load("IBM_STFT.npy")
@@ -75,7 +83,7 @@ def main():
     
     # Load testing data
     if args.is_closed:
-        print ("Loading closed set")
+        print ("Loading closed set...")
         
         Xva = load_pkl(Xva_load_nm)
         vaX = load_pkl("vaX_STFT.pkl")
@@ -83,7 +91,7 @@ def main():
             val_waves_dict = pickle.load(handle)
             
     else:   
-        print ("Loading open set")
+        print ("Loading open set...")
             
         Xva = load_pkl(Xte_load_nm)
         vaX = load_pkl("teX_STFT.pkl")
@@ -109,7 +117,9 @@ def main():
             projections = np.random.normal(loc=0.0, 
                             scale=1./args.n_proj, 
                             size=(Xtr.shape[1], args.n_proj))  
-            
+        
+        print ("Projections Shape: ", projections.shape)
+        
         if args.gpu_id != -1:
             Xtr = torch.cuda.FloatTensor(Xtr)
             projections = torch.cuda.FloatTensor(projections)
@@ -152,10 +162,9 @@ def main():
             scores = scores.detach().cpu().numpy()
         else:
             scores = np.dot(applied_tr, applied_vate.T)
-        if args.use_kernel:
-            scores = np.exp(scores/args.sigma2)
         if args.is_proj:
             scores = ((scores+args.n_proj)/2)
+        
         
         # Apply average of K IBMs
         K_locs = np.argpartition(-scores, args.K, 0)[:args.K]
@@ -192,26 +201,9 @@ def main():
         'ml': ml
     }
     
-    loaded = 0
-    if args.load_model:
-        loaded = 1
-        
-    test_nm = "results_[{}|{}]_proj[n={}]_feat[{}]_seed[{}]_perc[{}]".format(args.is_proj, 
-                                                                     loaded, args.n_proj, 
-                                                                    Xtr_load_nm.split('.')[0], args.seed,
-                                                                            int(args.use_perc*100))
-#     test_nm = "AdaRes_kTyp{}{}_K{}_feat{}{}{}_nproj{}_perc{}".format(
-#         int(args.is_oracle), int(args.is_proj), args.K, 
-#         int(args.use_stft), int(args.use_mel), int(args.use_mfcc),
-#         args.n_proj, int(args.use_perc*100))
-    
-    if args.is_closed:
-        test_nm += "CLOSED"
-        print ("SAVING {}".format(test_nm))
-    
-    with open('{}.pkl'.format(test_nm), 'wb') as handle:
+    with open('{}.pkl'.format(save_nm), 'wb') as handle:
             pickle.dump(result_dict, handle)
-    print ("Results saved")
+    print ("Results saved!")
     
 if __name__ == "__main__":
     main()

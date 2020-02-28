@@ -29,6 +29,12 @@ def SDR(s,sr):
     return ml, 10*np.log10(np.sum(s**2)/(np.sum((s-sr)**2)+eps)+eps)
 
 def get_mir_scores(s, n, x, sr):
+    """
+    s: Source signal
+    n: Noise signal
+    x: s + n
+    sr: Reconstructed signal (or some signal to evaluate against)
+    """
     ml = np.int(np.minimum(len(s), len(sr)))
     source = np.array(s[:ml])[:,None].T
     noise = np.array(n[:ml])[:,None].T
@@ -38,6 +44,7 @@ def get_mir_scores(s, n, x, sr):
             np.concatenate((source, noise),0),
             np.concatenate((sourceR, noiseR),0), 
             compute_permutation=False)   
+    # Take the first element from list for source's performance
     return sdr[0],sir[0],sar[0]
 
 def pt_to_np(X):
