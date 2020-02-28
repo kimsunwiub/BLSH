@@ -32,6 +32,12 @@ def parse_arguments():
                         help = "Segment length: ")
     parser.add_argument("--num_iters_pm", type=int, default=300,
                         help = "Num iteration to train random projections")
+    parser.add_argument("--ssmD", type=str, default='mse', 
+                        help="Distance function of self similarity matrices. Options: mse, xent")
+    parser.add_argument("--kernel", type=str, default='cosine', 
+                        help="Kernel for computing self similarity. Options: cosine, rbf")
+    parser.add_argument("--sigma2", type=float, default=0.0, 
+                        help="Denominator value for RBF kernel")
     return parser.parse_args()
 
 def main():
@@ -75,8 +81,8 @@ def main():
             wip1.shape, wip1[0,0]))
         projections = []
         betas = []
-        model_nm = "proj[n={}]_feat[{}]".format(len(projections), 
-                                                Xtr_load_nm.split('.')[0])
+        model_nm = "proj[n={}]_feat[{}]_ssmD[{}]_kern[{}|{}]".format(
+            len(projections), Xtr_load_nm.split('.')[0], args.ssmD, args.kernel, '_'.join(str(args.sigma2).split('.')))
     print ("Starting {}...".format(model_nm))
         
     # Training
@@ -104,12 +110,24 @@ def main():
                 print (
                     "wi_seg length: {}. Break.".format(len(wi_seg)))
                 break
-            ssm = torch.mm(Xtr_seg, Xtr_seg.t())
+            if args.kernel == "cosine":
+                ssm = torch.mm(Xtr_seg, Xtr_seg.t())
+            elif args.kernel == "rbf":
+                ssm = torch.exp(torch.mm(Xtr_seg, Xtr_seg.t()) / args.sigma2)
+            else:
+                print ("Check --kernel option...")
+                return -1
             ssm /= ssm.max()
             p_m, ssm_hat = train_pm_xent(
                 wi_seg, p_m, Xtr_seg, ssm, optimizer, args.num_iters_pm)
             bssm = bssm_sign(Xtr_seg, p_m)
-            sse = (bssm-ssm)**2
+            if args.ssmD == "mse":
+                sse = (bssm-ssm)**2
+            elif args.ssmD == "xent":
+                sse = xent_fn(bssm,ssm)
+            else:
+                print ("Check --ssmD option...")
+                return -1
             sse_div = sse/sse.max()
             e_t = (sse_div*wi_seg).sum()
             if e_t == 0.0:
@@ -130,8 +148,8 @@ def main():
         # Validation
         if (m+1) % 10 == 0:
             # Saving results
-            model_nm = "proj[n={}]_feat[{}]".format(len(projections), 
-                                        Xtr_load_nm.split('.')[0])
+            model_nm = "proj[n={}]_feat[{}]_ssmD[{}]_kern[{}|{}]".format(
+                len(projections), Xtr_load_nm.split('.')[0], args.ssmD, args.kernel, '_'.join(str(args.sigma2).split('.')))
             np.save("Ada_Results/{}_projs".format(model_nm), np.array(projections))
             np.save("Ada_Results/{}_wip1".format(model_nm), wip1)
             np.save("Ada_Results/{}_betas".format(model_nm), np.array(betas))
