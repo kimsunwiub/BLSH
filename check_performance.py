@@ -104,7 +104,7 @@ def main():
     
     # Load projections and apply
     if args.is_proj:
-        print ("Loading projections...")
+        print ("Loading projections, ", args.load_model)
         if args.load_model:
             projections = np.load(
                 "{}_projs.npy".format(args.load_model))
