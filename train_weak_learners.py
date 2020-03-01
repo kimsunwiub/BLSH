@@ -33,11 +33,15 @@ def parse_arguments():
     parser.add_argument("--num_iters_pm", type=int, default=300,
                         help = "Num iteration to train random projections")
     parser.add_argument("--ssmD", type=str, default='mse', 
-                        help="Distance function of self similarity matrices. Options: mse, xent")
+                        help="Distance for SSM. Options: mse, xent")
     parser.add_argument("--kernel", type=str, default='cosine', 
-                        help="Kernel for computing self similarity. Options: cosine, rbf")
+                        help="Kernel for SSM. Options: cosine, rbf")
     parser.add_argument("--sigma2", type=float, default=0.0, 
                         help="Denominator value for RBF kernel")
+    parser.add_argument("--save_every", type=int, default=10,
+                        help = "Specify saving frequency")
+    parser.add_argument("--save_wi", action='store_true',
+                        help="Debugging option to save example weights")
     return parser.parse_args()
 
 def main():
@@ -67,7 +71,6 @@ def main():
     m_start = 0
     if args.load_model:
         projections = list(np.load("{}_projs.npy".format(args.load_model)))
-        # betas
         wip1 = np.load("{}_wip1.npy".format(args.load_model))
 #         betas = list(np.load("{}_betas.npy".format(args.load_model)))
         betas = []
@@ -137,7 +140,8 @@ def main():
                 print ("e_t", e_t)
                 return -1
             beta_m_log = 0.5 * torch.log((1-e_t)/e_t)
-            wip1[i:i+segment_len] = pt_to_np(wi_seg * torch.exp(beta_m_log * sse_div))
+            wip1[i:i+segment_len] = pt_to_np(
+                wi_seg * torch.exp(beta_m_log * sse_div))
             
         wip1 /= wip1.sum()
         tic = time.time()
@@ -146,13 +150,15 @@ def main():
         betas.append(beta_m_log.detach().cpu().numpy())
 
         # Validation
-        if (m+1) % 10 == 0:
+        if (m+1) % args.save_every == 0:
             # Saving results
             model_nm = "proj[n={}]_feat[{}]_ssmD[{}]_kern[{}|{}]".format(
-                len(projections), Xtr_load_nm.split('.')[0], args.ssmD, args.kernel, '_'.join(str(args.sigma2).split('.')))
+                len(projections), Xtr_load_nm.split('.')[0], args.ssmD, 
+                args.kernel, '_'.join(str(args.sigma2).split('.')))
             np.save("Ada_Results/{}_projs".format(model_nm), np.array(projections))
-            np.save("Ada_Results/{}_wip1".format(model_nm), wip1)
             np.save("Ada_Results/{}_betas".format(model_nm), np.array(betas))
+            if args.save_wi:
+                np.save("Ada_Results/{}_wip1".format(model_nm), wip1)
     
 if __name__ == "__main__":
     main()
