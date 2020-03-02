@@ -32,6 +32,8 @@ def parse_arguments():
                         help = "Segment length: ")
     parser.add_argument("--num_iters_pm", type=int, default=300,
                         help = "Num iteration to train random projections")
+    parser.add_argument("--num_proj", type=int, default=200,
+                        help = "Number of projections")
     parser.add_argument("--ssmD", type=str, default='mse', 
                         help="Distance for SSM. Options: mse, xent")
     parser.add_argument("--kernel", type=str, default='cosine', 
@@ -63,7 +65,6 @@ def main():
     Ntr, n_features = Xtr.shape
     
     ## --- Training params ---
-    M = 200 # 50 # p_m
     np.random.seed(42)
     Xtr_shuffled = Xtr[np.random.permutation(len(Xtr))]
     
@@ -85,12 +86,13 @@ def main():
         projections = []
         betas = []
         model_nm = "proj[n={}]_feat[{}]_ssmD[{}]_kern[{}|{}]".format(
-            len(projections), Xtr_load_nm.split('.')[0], args.ssmD, args.kernel, '_'.join(str(args.sigma2).split('.')))
+            len(projections), Xtr_load_nm.split('.')[0], args.ssmD, 
+            args.kernel, '_'.join(str(args.sigma2).split('.')))
     print ("Starting {}...".format(model_nm))
         
     # Training
     learningRate=1e-2
-    for m in range(m_start,M+m_start):
+    for m in range(m_start, args.num_proj + m_start):
         # Init Training
         wi = wip1
         wip1 = np.zeros(wi.shape, dtype=np.float32)
@@ -113,6 +115,8 @@ def main():
                 print (
                     "wi_seg length: {}. Break.".format(len(wi_seg)))
                 break
+                
+            # Create SSM with a kernel
             if args.kernel == "cosine":
                 ssm = torch.mm(Xtr_seg, Xtr_seg.t())
             elif args.kernel == "rbf":
@@ -121,9 +125,13 @@ def main():
                 print ("Check --kernel option...")
                 return -1
             ssm /= ssm.max()
+            
+            # Train the weak learner
             p_m, ssm_hat = train_pm_xent(
                 wi_seg, p_m, Xtr_seg, ssm, optimizer, args.num_iters_pm)
             bssm = bssm_sign(Xtr_seg, p_m)
+            
+            # Compute distance between BSSM and SSM
             if args.ssmD == "mse":
                 sse = (bssm-ssm)**2
             elif args.ssmD == "xent":
@@ -132,12 +140,11 @@ def main():
                 print ("Check --ssmD option...")
                 return -1
             sse_div = sse/sse.max()
+            
+            # Updating weak learner weight and observation weights
             e_t = (sse_div*wi_seg).sum()
             if e_t == 0.0:
-                print ("Xtr", pt_to_np(Xtr_seg))
-                print ("ssm", pt_to_np(ssm))
-                print ("wi", pt_to_np(wi_seg))
-                print ("e_t", e_t)
+                print ("e_t reached 0")
                 return -1
             beta_m_log = 0.5 * torch.log((1-e_t)/e_t)
             wip1[i:i+segment_len] = pt_to_np(
@@ -149,9 +156,8 @@ def main():
         projections.append(p_m.detach().cpu().numpy())
         betas.append(beta_m_log.detach().cpu().numpy())
 
-        # Validation
+        # Saving results
         if (m+1) % args.save_every == 0:
-            # Saving results
             model_nm = "proj[n={}]_feat[{}]_ssmD[{}]_kern[{}|{}]".format(
                 len(projections), Xtr_load_nm.split('.')[0], args.ssmD, 
                 args.kernel, '_'.join(str(args.sigma2).split('.')))
