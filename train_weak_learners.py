@@ -75,8 +75,7 @@ def main():
     if args.load_model:
         projections = list(np.load("{}_projs.npy".format(args.load_model)))
         wip1 = np.load("{}_wip1.npy".format(args.load_model))
-#         betas = list(np.load("{}_betas.npy".format(args.load_model)))
-        betas = []
+        betas = list(np.load("{}_betas.npy".format(args.load_model)))
         m_start = len(projections)
         model_nm = args.load_model
     else:
