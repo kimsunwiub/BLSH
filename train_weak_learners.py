@@ -23,7 +23,7 @@ def parse_arguments():
     parser.add_argument("--use_mfcc", action='store_true',
                         help="Using MFCC features")
     parser.add_argument("--seed", type=int, default=42,
-                        help = "Data: Seed for train and test speaker selection")
+                        help = "Data: Seed for speaker selection")
     parser.add_argument("--gpu_id", type=int, default=0,
                         help = "GPU_ID")
     parser.add_argument("--load_model", type=str, default=None,
@@ -66,7 +66,9 @@ def main():
     
     ## --- Training params ---
     np.random.seed(42)
-    Xtr_shuffled = Xtr[np.random.permutation(len(Xtr))]
+    truncate_len = len(Xtr) % segment_len
+    Xtr_shuffled = Xtr[np.random.permutation(len(Xtr))][:-truncate_len]
+    Ntr, n_features = Xtr_shuffled.shape
     
     # Load previous model if given
     m_start = 0
@@ -97,24 +99,19 @@ def main():
         wi = wip1
         wip1 = np.zeros(wi.shape, dtype=np.float32)
         p_m = torch.Tensor(n_features, 1)
-        p_m = Variable(torch.nn.init.xavier_normal_(p_m).cuda(), requires_grad=True)
-        optimizer = torch.optim.Adam([p_m], betas=[0.95, 0.98], lr=learningRate)
+        p_m = Variable(
+            torch.nn.init.xavier_normal_(p_m).cuda(), requires_grad=True)
+        optimizer = torch.optim.Adam(
+            [p_m], betas=[0.95, 0.98], lr=learningRate)
 
         # Train projections and Adaboost
         toc = time.time()
         for i in range(0,len(Xtr_shuffled),segment_len):
-            if i % (segment_len*10) == 0:
-                print ("m={} Progress {:.2f}%".format(m, 100*i/len(Xtr_shuffled)))
+            if i % (segment_len*100) == 0:
+                print ("m={} Progress {:.2f}%".format(
+                    m, 100*i/len(Xtr_shuffled)))
             Xtr_seg = torch.cuda.FloatTensor(Xtr_shuffled[i:i+segment_len])
-            if len(Xtr_seg) < segment_len:
-                print (
-                    "Xtr_seg length: {}. Break.".format(len(Xtr_seg)))
-                break
             wi_seg = torch.cuda.FloatTensor(wi[i:i+segment_len])
-            if len(wi_seg) < segment_len:
-                print (
-                    "wi_seg length: {}. Break.".format(len(wi_seg)))
-                break
                 
             # Create SSM with a kernel
             if args.kernel == "cosine":
@@ -161,7 +158,8 @@ def main():
             model_nm = "proj[n={}]_feat[{}]_ssmD[{}]_kern[{}|{}]".format(
                 len(projections), Xtr_load_nm.split('.')[0], args.ssmD, 
                 args.kernel, '_'.join(str(args.sigma2).split('.')))
-            np.save("Ada_Results/{}_projs".format(model_nm), np.array(projections))
+            np.save("Ada_Results/{}_projs".format(model_nm), 
+                    np.array(projections))
             np.save("Ada_Results/{}_betas".format(model_nm), np.array(betas))
             if args.save_wi:
                 np.save("Ada_Results/{}_wip1".format(model_nm), wip1)
