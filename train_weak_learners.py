@@ -124,7 +124,7 @@ def main():
             ssm /= ssm.max()
             
             # Train the weak learner
-            p_m, ssm_hat = train_pm_xent(
+            p_m, ssm_hat, losses = train_pm_xent(
                 wi_seg, p_m, Xtr_seg, ssm, optimizer, args.num_iters_pm)
             bssm = bssm_sign(Xtr_seg, p_m)
             
