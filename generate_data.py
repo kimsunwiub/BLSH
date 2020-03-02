@@ -18,8 +18,10 @@ def parse_arguments():
                         help = "Option to generate STFTs")
     parser.add_argument("--make_mels", action='store_true',
                         help = "Option to generate Mels")
-    parser.add_argument("--make_mfccs", action='store_true',
-                        help = "Option to generate MFCCs")
+    parser.add_argument("--make_mels", action='store_true',
+                        help = "Option to generate Mels")
+    parser.add_argument("--make_log_mels", action='store_true',
+                        help = "Option to generate log Mels")
     
     return parser.parse_args()
 
@@ -122,6 +124,31 @@ def main():
         save_pkl(Xva, 'vaX_Mel.pkl')
         save_pkl(Xte, 'teX_Mel.pkl')
 
+    if args.make_log_mels:
+        # Check if magnitude STFTs have been generated
+        if not os.path.exists('trX_mag_STFT.pkl'):
+            print ("Need to generate STFTs first.")
+            return -1
+        
+        trX_mag = load_pkl('trX_mag_STFT.pkl')
+        vaX_mag = load_pkl('vaX_mag_STFT.pkl')
+        teX_mag = load_pkl('teX_mag_STFT.pkl')
+        
+        # Mel spectrogram    
+        Xtr = [librosa.feature.melspectrogram(
+                S=np.log(x.T**2), sr=16000).T.astype(np.float32) 
+                for x in trX_mag]
+        Xva = [librosa.feature.melspectrogram(
+                S=np.log(x.T**2), sr=16000).T.astype(np.float32)  
+                for x in vaX_mag]
+        Xte = [librosa.feature.melspectrogram(
+                S=np.log(x.T**2), sr=16000).T.astype(np.float32) 
+                for x in teX_mag]
+        
+        save_pkl(Xtr, 'trX_log_Mel.pkl')
+        save_pkl(Xva, 'vaX_log_Mel.pkl')
+        save_pkl(Xte, 'teX_log_Mel.pkl')
+        
     if args.make_mfccs:
         # Check if Mels have been generated
         if not os.path.exists('trX_Mel.pkl'):

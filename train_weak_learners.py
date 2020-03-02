@@ -93,7 +93,7 @@ def main():
     print ("Starting {}...".format(model_nm))
         
     # Training
-    learningRate=1e-2
+    learningRate=1e-2 # TODO: Into argparser
     for m in range(m_start, args.num_proj + m_start):
         # Init Training
         wi = wip1
