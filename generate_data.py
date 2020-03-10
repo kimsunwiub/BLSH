@@ -18,8 +18,8 @@ def parse_arguments():
                         help = "Option to generate STFTs")
     parser.add_argument("--make_mels", action='store_true',
                         help = "Option to generate Mels")
-    parser.add_argument("--make_mels", action='store_true',
-                        help = "Option to generate Mels")
+    parser.add_argument("--make_mfccs", action='store_true',
+                        help = "Option to generate MFCCs")
     parser.add_argument("--make_log_mels", action='store_true',
                         help = "Option to generate log Mels")
     
@@ -85,6 +85,9 @@ def main():
         save_pkl(trX, 'trX_STFT.pkl')
         save_pkl(vaX, 'vaX_STFT.pkl')
         save_pkl(teX, 'teX_STFT.pkl')
+        # Only these signals (trX_STFT.pkl) are used for kNN procedure
+        # Rest of the datagen is for generating the normed (Xtr_MFCC.npy)
+        # for training the weak learners. 
         
         save_pkl(trX_mag, 'trX_mag_STFT.pkl')
         save_pkl(vaX_mag, 'vaX_mag_STFT.pkl')
@@ -109,7 +112,7 @@ def main():
         vaX_mag = load_pkl('vaX_mag_STFT.pkl')
         teX_mag = load_pkl('teX_mag_STFT.pkl')
         
-        # Mel spectrogram    
+        # Mel on power spectrogram    
         Xtr = [librosa.feature.melspectrogram(
                 S=x.T**2, sr=16000).T.astype(np.float32) 
                 for x in trX_mag]
@@ -134,20 +137,19 @@ def main():
         vaX_mag = load_pkl('vaX_mag_STFT.pkl')
         teX_mag = load_pkl('teX_mag_STFT.pkl')
         
-        # Mel spectrogram    
+        # Mel on log power spectrogram    
+        # +1 factor to avoid negative values
         Xtr = [librosa.feature.melspectrogram(
-                S=np.log(x.T**2), sr=16000).T.astype(np.float32) 
+                S=np.log(x.T**2+1), sr=16000).T.astype(np.float32) 
                 for x in trX_mag]
         Xva = [librosa.feature.melspectrogram(
-                S=np.log(x.T**2), sr=16000).T.astype(np.float32)  
+                S=np.log(x.T**2+1), sr=16000).T.astype(np.float32)  
                 for x in vaX_mag]
         Xte = [librosa.feature.melspectrogram(
-                S=np.log(x.T**2), sr=16000).T.astype(np.float32) 
+                S=np.log(x.T**2+1), sr=16000).T.astype(np.float32) 
                 for x in teX_mag]
         
-        save_pkl(Xtr, 'trX_log_Mel.pkl')
-        save_pkl(Xva, 'vaX_log_Mel.pkl')
-        save_pkl(Xte, 'teX_log_Mel.pkl')
+        # Don't save log mel pickle files since not needed for further datagen
         
     if args.make_mfccs:
         # Check if Mels have been generated
@@ -159,7 +161,7 @@ def main():
         vaX_Mel = load_pkl('vaX_Mel.pkl')
         teX_Mel = load_pkl('teX_Mel.pkl')
         
-        # Mel cepstrogram
+        # Mel-frequency cepstral coefficients
         Xtr = [librosa.feature.mfcc(
                 S=librosa.power_to_db(x).T, sr=16000).T.astype(np.float32) 
                 for x in trX_Mel]
@@ -170,7 +172,7 @@ def main():
                 S=librosa.power_to_db(x).T, sr=16000).T.astype(np.float32)
                 for x in teX_Mel]
     
-    if args.make_stfts or args.make_mels or args.make_mfccs:
+    if args.make_stfts or args.make_mels or args.make_mfccs or args.make_log_mels:
         Xtr = np.concatenate(Xtr, 0)
 
         # Normalize
@@ -183,11 +185,17 @@ def main():
             suffix = "Mel"
         elif args.make_mfccs: 
             suffix = "MFCC"
+        elif args.make_log_mels: 
+            suffix = "log_Mel"
         else: 
             suffix = "STFT"
         np.save("Xtr_{}".format(suffix), Xtr)
         save_pkl(Xva, "Xva_{}.pkl".format(suffix))
         save_pkl(Xte, "Xte_{}.pkl".format(suffix))
+        
+        # Concatenated
+        Xva_concat = np.concatenate(Xva, 0)
+        np.save("Xva_{}".format(suffix), Xva_concat)
         
 if __name__ == "__main__":
     main()

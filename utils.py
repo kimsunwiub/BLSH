@@ -68,11 +68,11 @@ def bssm_tanh(input_data, p_m):
     bssm = (bssm+1)/2
     return bssm
 
-def bssm_sign(input_data, p_m):
-    temp = torch.mm(input_data, p_m)
+def bssm_sign(input_data, p_m): #TODO BIAS
+    temp = torch.mm(input_data, p_m) # 1000 x 513. dot 513 x 1
     signbnnh1=signBNN()
-    output = signbnnh1(temp)
-    bssm = torch.mm(output, output.t())
+    output = signbnnh1(temp) # 1000 x 1
+    bssm = torch.mm(output, output.t()) # 1000 x 1000
     bssm = (bssm+1)/2
     return bssm
 
@@ -83,15 +83,52 @@ def xent_fn(p, q):
             )
     return ret_xent
 
-def train_pm_xent(wi, p_m, input_data, ssm, optimizer, num_iter):
-    losses = []
-    for i in range(num_iter):
-        bssm = bssm_sign(input_data, p_m)
-        loss = (xent_fn(bssm,ssm)*wi).sum()
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-    return p_m, bssm, losses
+def np_xent_fn(p, q):
+    ret_xent = -(
+                (p+1e-20)*np.log(q+1e-20) \
+                + (1-p+1e-20) * np.log(1-q+1e-20)
+            )
+    return ret_xent
+
+def validate(Xva, args, p_m):
+    # Validation
+    epoch_losses = []
+    for i in range(0, len(Xva), args.segment_len):
+        Xva_seg = torch.cuda.FloatTensor(Xva[i:i+args.segment_len])
+        ssm_va = torch.mm(Xva_seg, Xva_seg.t())
+        ssm_va /= ssm_va.max()
+        Xva_seg_bias = torch.cat((Xva_seg, torch.ones((len(Xva_seg),1)).cuda()), 1)
+        bssm = bssm_sign(Xva_seg_bias, p_m)
+        loss_va = ((bssm-ssm_va)**2).mean()
+        epoch_losses.append(float(loss_va))
+    return np.mean(epoch_losses)
 
 def get_stats(X):
     return X.min(), X.max(), X.mean(), X.std()
+
+def get_beta(Xtr, wi, p_m, args):
+    beta_m = []
+    for i in range(0, len(Xtr), args.segment_len):
+        Xtr_seg = torch.cuda.FloatTensor(Xtr[i:i+args.segment_len])
+        wi_seg = torch.cuda.FloatTensor(wi[i:i+args.segment_len])
+
+        # Create SSM with a kernel
+        if args.kernel == "linear":
+            ssm_tr = torch.mm(Xtr_seg, Xtr_seg.t())
+        elif args.kernel == "rbf":
+            ssm_tr = torch.exp(torch.mm(Xtr_seg, Xtr_seg.t()) / args.sigma2)
+
+        Xtr_seg_bias = torch.cat((Xtr_seg, torch.ones((len(Xtr_seg),1)).cuda()), 1)
+        
+        if args.debug_option > 2:
+            bssm = bssm_tanh(Xtr_seg_bias, p_m) 
+        else:
+            bssm = bssm_sign(Xtr_seg_bias, p_m)
+            
+        # Backprop with weighted sum of errors
+        sqerr = (bssm-ssm_tr)**2
+        e_t = (sqerr * wi_seg).sum()
+        e_t = pt_to_np(e_t)
+        beta_i = 0.5 * np.log((1-e_t)/e_t)
+        beta_m.append(beta_i)
+    return np.mean(beta_m)

@@ -8,18 +8,16 @@ import os
 from utils import SDR, get_mir_scores, load_pkl
 
 def parse_arguments():
-    parser = ArgumentParser()
+    parser = ArgumentParser() 
     
-    parser.add_argument("-o", "--is_oracle", action='store_true',
-                        help="kNN on original features")
     parser.add_argument("-p", "--is_proj", action='store_true',
                         help="kNN on projections")
     parser.add_argument("--use_stft", action='store_true',
                         help="Using STFT features")
-    parser.add_argument("--use_mel", action='store_true',
-                        help="Using Mel features")
     parser.add_argument("--use_mfcc", action='store_true',
                         help="Using MFCC features")
+    parser.add_argument("--use_log_mel", action='store_true',
+                        help="Using log Mel features")
     parser.add_argument("--is_closed", action='store_true',
                         help="Open (Test) / Closed (Val)")
     
@@ -35,6 +33,8 @@ def parse_arguments():
                         help = "Seed for random sampling from dictionary")
     parser.add_argument("--gpu_id", type=int, default=-1,
                         help = "GPU ID. -1 for ")
+    parser.add_argument("--print_every", type=int, default=100,
+                        help = "Option for printing frequency")
     
     return parser.parse_args()
 
@@ -51,14 +51,14 @@ def main():
         Xtr_load_nm = "Xtr_STFT.npy"
         Xva_load_nm = "Xva_STFT.pkl"
         Xte_load_nm = "Xte_STFT.pkl"
-    elif args.use_mel:
-        Xtr_load_nm = "Xtr_Mel.npy"
-        Xva_load_nm = "Xva_Mel.pkl"
-        Xte_load_nm = "Xte_Mel.pkl"
     elif args.use_mfcc:
         Xtr_load_nm = "Xtr_MFCC.npy"
         Xva_load_nm = "Xva_MFCC.pkl"
         Xte_load_nm = "Xte_MFCC.pkl"
+    elif args.use_log_mel:
+        Xtr_load_nm = "Xtr_log_Mel.npy"
+        Xva_load_nm = "Xva_log_Mel.pkl"
+        Xte_load_nm = "Xte_log_Mel.pkl"
     
     # Name for saving results
     feature_or_model = Xtr_load_nm.split('.')[0]
@@ -122,8 +122,9 @@ def main():
         
         if args.gpu_id != -1:
             Xtr = torch.cuda.FloatTensor(Xtr)
+            Xtr_bias = torch.cat((Xtr, torch.ones((len(Xtr),1)).cuda()), 1)
             projections = torch.cuda.FloatTensor(projections)
-            applied_tr = torch.sign(Xtr.mm(projections))
+            applied_tr = torch.sign(Xtr_bias.mm(projections))
         else:
             applied_tr = np.sign(np.dot(Xtr, projections))
         
@@ -147,7 +148,8 @@ def main():
         if args.is_proj:
             if args.gpu_id != -1:
                 Xva_i = torch.cuda.FloatTensor(Xva[i])
-                applied_vate = torch.sign(Xva_i.mm(projections))
+                Xva_i_bias = torch.cat((Xva_i, torch.ones((len(Xva_i),1)).cuda()), 1)
+                applied_vate = torch.sign(Xva_i_bias.mm(projections))
             else:
                 applied_vate = np.sign(np.dot(Xva[i], projections))
         else:
@@ -178,18 +180,18 @@ def main():
         mirSDRlist[i] = msdr
         mirSIRlist[i] = msir
         mirSARlist[i] = msar
-
-        # Print every 100 signals
-        if i % 100 == 0:
+        
+        # Print intermediate results
+        if (i+1) % args.print_every == 0:
             curr_tot_SDR = np.sum(ml*SDRlist/np.sum(ml))
             curr_tot_mSDR = np.sum(ml*mirSDRlist/np.sum(ml))
             curr_tot_mSIR = np.sum(ml*mirSIRlist/np.sum(ml))
             curr_tot_mSAR = np.sum(ml*mirSARlist/np.sum(ml))
 
-            prog = i/len(vas)*100
+            prog = (i+1)/len(vas)*100
 
             print ("{}: {:.2f} SDR {:.2f} mSDR {:.2f} mSIR {:.2f} mSAR {:.2f}"
-                   .format(i, prog, curr_tot_SDR, curr_tot_mSDR, 
+                   .format(i+1, prog, curr_tot_SDR, curr_tot_mSDR, 
                            curr_tot_mSIR, curr_tot_mSAR))
     
     # Save results
@@ -207,3 +209,4 @@ def main():
     
 if __name__ == "__main__":
     main()
+
