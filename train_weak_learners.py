@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-from utils import pt_to_np, signBNN, bssm_tanh, bssm_sign, xent_fn, validate, save_pkl, load_pkl, get_beta
+from utils import pt_to_np, signBNN, bssm_tanh, bssm_sign, bssm_sign_nograd, xent_fn, validate, save_pkl, load_pkl, get_beta
 
 import warnings # TODO: Replace deprecated fn.
 warnings.filterwarnings("ignore")
@@ -46,6 +46,8 @@ def parse_arguments():
                         help = "Specify saving frequency")
     parser.add_argument("--debug", action='store_true',
                         help="Debugging option (tweak lr, save wip1s)")
+    parser.add_argument("--use_bias", action='store_true',
+                        help="Add bias term to weak learners")
     parser.add_argument("--debug_option", type=int, default=0,
                         help = "1: Normal, 2: Tanh 1, 3: Tanh 2, 4: Tanh 3")
     # 1: Training projs
@@ -103,9 +105,9 @@ def main():
         projections = []
         proj_losses = []
         betas = []
-        model_nm = "proj[n={}]_feat[{}]_kern[{}_{}]_lr[{:.0e}]".format(
+        model_nm = "proj[n={}]_feat[{}]_kern[{}_{}]_lr[{:.0e}]_bias[{}]".format(
             len(projections), Xtr_load_nm.split('.')[0], args.kernel, 
-            args.sigma2, args.lr)
+            args.sigma2, args.lr, args.use_bias)
         if args.debug_option > 0:
             model_nm += "_debug[{}]".format(args.debug_option)
     print ("Starting {}...".format(model_nm))
@@ -142,7 +144,11 @@ def main():
                     ssm_tr = torch.exp(torch.mm(Xtr_seg, Xtr_seg.t()) / args.sigma2)
 
                 # Train the weak learner  
-                Xtr_seg_bias = torch.cat((Xtr_seg, torch.ones((len(Xtr_seg),1)).cuda()), 1)
+                if args.use_bias:
+                    Xtr_seg_bias = torch.cat((Xtr_seg, torch.ones((len(Xtr_seg),1)).cuda()), 1)
+                else:
+                    Xtr_seg_bias = Xtr_seg
+                    
                 if args.debug_option > 1:
                     bssm = bssm_tanh(Xtr_seg_bias, p_m) 
                 else:
@@ -154,7 +160,7 @@ def main():
                 e_t.backward()
                 optimizer.step()
                 e_t = float(e_t)
-            tr_losses.append(e_t)
+                tr_losses.append(e_t)
 
             # Use validation error for stopping criterion
             curr_err = validate(Xva, args, p_m)
@@ -186,12 +192,13 @@ def main():
                 ssm_tr = torch.mm(Xtr_seg, Xtr_seg.t())
             elif args.kernel == "rbf":
                 ssm_tr = torch.exp(torch.mm(Xtr_seg, Xtr_seg.t()) / args.sigma2)
-
-            Xtr_seg_bias = torch.cat((Xtr_seg, torch.ones((len(Xtr_seg),1)).cuda()), 1)
-            if args.debug_option == 4:
-                bssm = bssm_tanh(Xtr_seg_bias, p_m) 
+                
+            if args.use_bias:
+                Xtr_seg_bias = torch.cat((Xtr_seg, torch.ones((len(Xtr_seg),1)).cuda()), 1)
             else:
-                bssm = bssm_sign(Xtr_seg_bias, p_m) 
+                Xtr_seg_bias = Xtr_seg
+            
+            bssm = bssm_sign_nograd(Xtr_seg_bias, p_m)
             # Backprop with weighted sum of errors
             sqerr = (bssm-ssm_tr)**2
 
@@ -201,17 +208,17 @@ def main():
 
         tic = time.time()
         print ("Time: Learning projection #{}: {:.2f} for {} iterations".format(
-            m, tic-toc, epoch))
+            m+1, tic-toc, epoch))
         print ("\tbeta: {:.3f}".format(beta))
         projections.append(p_m.detach().cpu().numpy())
         proj_losses.append(tot_losses)
         betas.append(beta)
 
         # Saving results
-        if (m+1) % args.save_every == 0 or m < 25:
-            model_nm = "proj[n={}]_feat[{}]_kern[{}_{}]_lr[{:.0e}]".format(
+        if (m+1) % args.save_every == 0:
+            model_nm = "proj[n={}]_feat[{}]_kern[{}_{}]_lr[{:.0e}]_bias[{}]".format(
                 len(projections), Xtr_load_nm.split('.')[0], args.kernel, 
-                args.sigma2, args.lr)
+                args.sigma2, args.lr, args.use_bias)
             if args.debug_option > 0:
                 model_nm += "_debug[{}]".format(args.debug_option)
             np.save("Ada_Results/{}_projs".format(model_nm), 
@@ -219,8 +226,7 @@ def main():
             save_pkl(proj_losses, 
                      "Ada_Results/{}_projlosses.pkl".format(model_nm))
             np.save("Ada_Results/{}_betas".format(model_nm), np.array(betas))
-#             if args.debug:
-#                 np.save("Ada_Results/{}_wip1".format(model_nm), wip1)
+            np.save("Ada_Results/{}_wip1".format(model_nm), wip1)
 
     np.save("Ada_Results/{}_wip1".format(model_nm), wip1)
 
