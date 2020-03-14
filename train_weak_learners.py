@@ -30,29 +30,26 @@ def parse_arguments():
                         help="Load previous permutations and results")
     parser.add_argument("--segment_len", type=int, default=1000,
                         help = "Segment length: ")
-    parser.add_argument("--min_iter", type=float, default=5,
-                        help = "Minimum number of iterations for learners")
-    parser.add_argument("--max_iter", type=float, default=200,
+    parser.add_argument("--max_iter", type=float, default=100,
                         help = "Maximum number of iterations for learners")
-    parser.add_argument("--lr", type=float, default=1e-7, 
+    parser.add_argument("--lr", type=float, default=1e-4, 
                         help="Learning rate for training weak learners")
-    parser.add_argument("--num_proj", type=int, default=200,
+    parser.add_argument("--num_proj", type=int, default=100,
                         help = "Number of projections")
     parser.add_argument("--kernel", type=str, default='linear', 
                         help="Kernel for SSM. Options: linear, rbf")
     parser.add_argument("--sigma2", type=float, default=0.0, 
                         help="Denominator value for RBF kernel")
-    parser.add_argument("--save_every", type=int, default=10,
+    parser.add_argument("--save_every", type=int, default=25,
                         help = "Specify saving frequency")
     parser.add_argument("--debug", action='store_true',
                         help="Debugging option (tweak lr, save wip1s)")
     parser.add_argument("--use_bias", action='store_true',
                         help="Add bias term to weak learners")
     parser.add_argument("--debug_option", type=int, default=0,
-                        help = "1: Normal, 2: Tanh 1, 3: Tanh 2, 4: Tanh 3")
-    # 1: Training projs
-    # 2: Getting beta
-    # 3: Updating Adaboost params
+                        help = "1: Normal, 2: Tanh pm, 3: Tanh beta")
+    parser.add_argument("--tanhscale", type=float, default=1.0, 
+                        help="Tanh scaling for option 2 and 3")
     return parser.parse_args()
 
 def main():
@@ -109,15 +106,17 @@ def main():
             len(projections), Xtr_load_nm.split('.')[0], args.kernel, 
             args.sigma2, args.lr, args.use_bias)
         if args.debug_option > 0:
-            model_nm += "_debug[{}]".format(args.debug_option)
+            model_nm += "_debug[{}|{}]".format(args.debug_option, args.tanhscale)
     print ("Starting {}...".format(model_nm))
         
     
     for m in range(m_start, args.num_proj + m_start):
         # Init Training
         wi = wip1
-        
-        p_m = torch.Tensor(n_features+1, 1)
+        if args.use_bias:
+            p_m = torch.Tensor(n_features+1, 1)
+        else:
+            p_m = torch.Tensor(n_features, 1)
         p_m = Variable(
             torch.nn.init.xavier_normal_(p_m).cuda(), requires_grad=True)
         optimizer = torch.optim.Adam([p_m], betas=[0.95, 0.98], lr=args.lr)
@@ -125,23 +124,16 @@ def main():
         toc = time.time()
         epoch = 0
         lsi = 0 # Losses start index
-        tot_losses = []
         tr_losses = []
-        curr_mean = np.inf
-        # Condition determined by running average of 'args.min_iter' errors
-        condition = epoch < args.min_iter
-        while condition:
-            epoch += 1
+        for epoch in range(args.max_iter):
+            ep_losses = []
             # Training
             for i in range(0, Ntr, args.segment_len):
                 Xtr_seg = torch.cuda.FloatTensor(Xtr[i:i+args.segment_len])
                 wi_seg = torch.cuda.FloatTensor(wi[i:i+args.segment_len])
 
-                # Create SSM with a kernel
-                if args.kernel == "linear":
-                    ssm_tr = torch.mm(Xtr_seg, Xtr_seg.t())
-                elif args.kernel == "rbf":
-                    ssm_tr = torch.exp(torch.mm(Xtr_seg, Xtr_seg.t()) / args.sigma2)
+                # Create SSM 
+                ssm_tr = torch.mm(Xtr_seg, Xtr_seg.t())*2 - 1
 
                 # Train the weak learner  
                 if args.use_bias:
@@ -150,7 +142,7 @@ def main():
                     Xtr_seg_bias = Xtr_seg
                     
                 if args.debug_option > 1:
-                    bssm = bssm_tanh(Xtr_seg_bias, p_m) 
+                    bssm = bssm_tanh(Xtr_seg_bias, p_m, args.tanhscale) 
                 else:
                     bssm = bssm_sign(Xtr_seg_bias, p_m)
                 # Backprop with weighted sum of errors
@@ -160,25 +152,11 @@ def main():
                 e_t.backward()
                 optimizer.step()
                 e_t = float(e_t)
-                tr_losses.append(e_t)
-
-            # Use validation error for stopping criterion
-            curr_err = validate(Xva, args, p_m)
-            tot_losses.append(curr_err)
+                ep_losses.append(e_t)
             if args.debug:
-                print ("\tEpoch {}: e_t {:.3f}".format(epoch, curr_err))
-
-            if epoch >= args.min_iter:
-                prev_mean = curr_mean
-                # Window 'args.min_iter' errors with 'lsi'
-                curr_mean = np.mean(tot_losses[lsi:])
-                # Define new stopping criterion
-                condition = (prev_mean-curr_mean) > tol
-                condition = condition and epoch < args.max_iter
-                lsi += 1
-
-                if args.debug:
-                    print ("\tloss_mean {:.6f}".format(curr_mean))
+                if (epoch+1) % 20 == 0:
+                    print("DEBUG: ", m, epoch, np.mean(ep_losses))
+            tr_losses.append(np.mean(ep_losses))
 
         # Update Adaboost parameters at end of training        
         beta = get_beta(Xtr_shuffled, wi, p_m, args)
@@ -188,10 +166,7 @@ def main():
             wi_seg = torch.cuda.FloatTensor(wi[i:i+args.segment_len])
 
             # Create SSM with a kernel
-            if args.kernel == "linear":
-                ssm_tr = torch.mm(Xtr_seg, Xtr_seg.t())
-            elif args.kernel == "rbf":
-                ssm_tr = torch.exp(torch.mm(Xtr_seg, Xtr_seg.t()) / args.sigma2)
+            ssm_tr = torch.mm(Xtr_seg, Xtr_seg.t())*2 - 1
                 
             if args.use_bias:
                 Xtr_seg_bias = torch.cat((Xtr_seg, torch.ones((len(Xtr_seg),1)).cuda()), 1)
@@ -200,22 +175,24 @@ def main():
             
             bssm = bssm_sign_nograd(Xtr_seg_bias, p_m)
             # Backprop with weighted sum of errors
-            sqerr = (bssm-ssm_tr)**2
+            sqerr = (bssm-ssm_tr)**2 /2 - 1
 
             wip1[i:i+args.segment_len] = pt_to_np(wi_seg) * np.exp(
-                beta * pt_to_np(sqerr))
+                -beta * pt_to_np(sqerr))
             wip1[i:i+args.segment_len] /= wip1[i:i+args.segment_len].sum()
 
         tic = time.time()
         print ("Time: Learning projection #{}: {:.2f} for {} iterations".format(
             m+1, tic-toc, epoch))
         print ("\tbeta: {:.3f}".format(beta))
+        if args.debug:
+            print ("DEBUG. tr_losses[::20] = ", tr_losses[::20])
         projections.append(p_m.detach().cpu().numpy())
-        proj_losses.append(tot_losses)
+        proj_losses.append(tr_losses)
         betas.append(beta)
 
         # Saving results
-        if (m+1) % args.save_every == 0:
+        if (m+1) % args.save_every == 0 or m < 5:
             model_nm = "proj[n={}]_feat[{}]_kern[{}_{}]_lr[{:.0e}]_bias[{}]".format(
                 len(projections), Xtr_load_nm.split('.')[0], args.kernel, 
                 args.sigma2, args.lr, args.use_bias)
